@@ -1,8 +1,23 @@
 import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
+
 from dotenv import load_dotenv
 import os
+
+from flask import Flask
+import threading
+import os
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Bot is running!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
 load_dotenv()
 
@@ -19,6 +34,9 @@ vk = vk_session.get_api()
 longpoll = VkLongPoll(vk_session)
 
 print("Бот запущен...")
+threading.Thread(target=run_web).start()
+
+
 
 def get_choice_keyboard():
     keyboard = VkKeyboard(one_time=True)
