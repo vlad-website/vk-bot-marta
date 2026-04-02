@@ -118,7 +118,7 @@ def handle_message(user_id, text):
         vk.messages.send(
             user_id=user_id,
             message=(
-                f"Хорошо, {first_name}! 😊\n"
+                f"Хорошо, {first_name} 😊\n"
                 "Давай попробуем найти твой Memory Number 🔢✨\n"
                 "Я задам пару простых вопросов:\n\n"
                 "Скажи, какой момент или ощущение тебе сейчас ближе всего? 🤔💭\n"
