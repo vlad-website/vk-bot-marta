@@ -119,8 +119,10 @@ def handle_message(user_id, text):
             user_id=user_id,
             message=(
                 f"Хорошо, {first_name}!\n"
-                "Давай попробуем найти твой Memory Number\n\n"
-                "Скажи, какой момент или ощущение тебе сейчас ближе всего?"
+                "Давай попробуем найти твой Memory Number\n"
+                "Я задам пару простых вопросов:\n\n"
+                "Скажи, какой момент или ощущение тебе сейчас ближе всего?\n"
+                "(Это может быть что угодно — место, время, чувство)"
             ),
             random_id=0
         )
@@ -201,17 +203,20 @@ def handle_message(user_id, text):
         if text_lower == "да, давайте":
             vk.messages.send(
                 user_id=user_id,
-                message="Менеджер скоро свяжется с вами 😊",
+                message=(
+                    "Отлично! Сейчас с вами свяжется менеджер 😊\n\n"
+                    "Если захочешь подобрать другой аромат — напиши memory ✨"
+                ),
                 random_id=0
             )
 
             send_telegram(
                 f"🔥 Новый клиент\n"
                 f"ID: {user_id}\n"
-                f"Memory: {users[user_id].get('memory')}\n"
-                f"Feel: {users[user_id].get('feel')}\n"
-                f"Smell: {users[user_id].get('smell')}\n"
-                f"Result: {users[user_id].get('result')}"
+                f"Воспоминание: {users[user_id].get('memory')}\n"
+                f"Ощущение: {users[user_id].get('feel')}\n"
+                f"Аромат: {users[user_id].get('smell')}\n"
+                f"Предложено: {users[user_id].get('result')}"
             )
 
             users[user_id]["state"] = "sleep"
