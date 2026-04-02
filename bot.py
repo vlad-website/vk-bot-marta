@@ -226,17 +226,25 @@ def handle_message(user_id, text, original_text):
 @app.route("/", methods=["POST"])
 def webhook():
     data = request.json
+    print("ПРИШЕЛ ЗАПРОС:", data)
 
-    # Для подтверждения сервиса VK при setup
-    if "type" in data and data["type"] == "confirmation":
-        return os.getenv("VK_CONFIRMATION_CODE")  # VK выдаст этот код
+    if data["type"] == "confirmation":
+        return os.getenv("VK_CONFIRMATION_CODE")
 
-    # Основные события
-    if "type" in data and data["type"] == "message_new":
-        obj = data["object"]
-        user_id = obj["from_id"]
-        text = obj["text"]
-        handle_message(user_id, text, obj["text"])
+    if data["type"] == "message_new":
+        try:
+            obj = data["object"]["message"]
+
+            user_id = obj["from_id"]
+            text = obj["text"]
+
+            print("USER:", user_id, "TEXT:", text)
+
+            handle_message(user_id, text, text)
+
+        except Exception as e:
+            print("ОШИБКА ОБРАБОТКИ:", e)
+
     return "ok"
 
 @app.route("/", methods=["GET"])
