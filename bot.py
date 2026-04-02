@@ -118,11 +118,11 @@ def handle_message(user_id, text):
         vk.messages.send(
             user_id=user_id,
             message=(
-                f"Хорошо, {first_name}!\n"
-                "Давай попробуем найти твой Memory Number\n"
+                f"Хорошо, {first_name}! 😊\n"
+                "Давай попробуем найти твой Memory Number 🔢✨\n"
                 "Я задам пару простых вопросов:\n\n"
-                "Скажи, какой момент или ощущение тебе сейчас ближе всего?\n"
-                "(Это может быть что угодно — место, время, чувство)"
+                "Скажи, какой момент или ощущение тебе сейчас ближе всего? 🤔💭\n"
+                "(Это может быть что угодно — место, время, чувство 🌍🕰️❤️)"
             ),
             random_id=0
         )
@@ -134,7 +134,7 @@ def handle_message(user_id, text):
 
         vk.messages.send(
             user_id=user_id,
-            message="Это ощущение теплое или свежее?",
+            message="Это ощущение теплое 🔥 или свежее ❄️?",
             keyboard=get_feel_keyboard(),
             random_id=0
         )
@@ -155,7 +155,7 @@ def handle_message(user_id, text):
 
         vk.messages.send(
             user_id=user_id,
-            message="Какой это запах?",
+            message="Какой это запах? 👃🌸",
             keyboard=get_smell_keyboard(),
             random_id=0
         )
@@ -193,7 +193,7 @@ def handle_message(user_id, text):
 
         vk.messages.send(
             user_id=user_id,
-            message=f"Рекомендую: {result}\n\nОформляем?",
+            message=f"Рекомендую: {result} 🌟\n\nОформляем? 📝✨",
             keyboard=get_final_keyboard(),
             random_id=0
         )
