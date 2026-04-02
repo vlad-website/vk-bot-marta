@@ -119,7 +119,7 @@ def handle_message(user_id, text):
             user_id=user_id,
             message=(
                 f"Хорошо, {first_name} 😊\n"
-                "Давай попробуем найти твой Memory Number 🔢✨\n"
+                "Давай попробуем найти твой Memory Number✨\n"
                 "Я задам пару простых вопросов:\n\n"
                 "Скажи, какой момент или ощущение тебе сейчас ближе всего? 🤔💭\n"
                 "(Это может быть что угодно — место, время или чувство 🌍🕰️❤️)"
@@ -155,7 +155,7 @@ def handle_message(user_id, text):
 
         vk.messages.send(
             user_id=user_id,
-            message="Какой это запах? 👃🌸",
+            message="А если представить этот момент как запах - он скорее сладкий, древесный, цветочный?",
             keyboard=get_smell_keyboard(),
             random_id=0
         )
