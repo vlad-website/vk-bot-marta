@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 from flask import Flask, request
 import vk_api
@@ -13,6 +14,7 @@ app = Flask(__name__)
 VK_TOKEN = os.getenv("VK_TOKEN")
 TG_TOKEN = os.getenv("TG_TOKEN")
 TG_CHAT_ID = os.getenv("TG_CHAT_ID")
+VK_CONFIRMATION_CODE = os.getenv("VK_CONFIRMATION_CODE")
 
 # VK API
 vk_session = vk_api.VkApi(token=VK_TOKEN)
@@ -21,13 +23,10 @@ vk = vk_session.get_api()
 # Состояния пользователей
 users = {}
 
-# ------------------- Клавиатуры -------------------
-def get_choice_keyboard():
-    keyboard = VkKeyboard(one_time=True)
-    keyboard.add_button("Уютное", color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button("Свежее", color=VkKeyboardColor.POSITIVE)
-    return keyboard.get_keyboard()
+# Защита от дублей событий
+processed_events = set()
 
+# ------------------- Клавиатуры -------------------
 def get_feel_keyboard():
     keyboard = VkKeyboard(one_time=True)
     keyboard.add_button("Теплое ощущение", color=VkKeyboardColor.PRIMARY)
@@ -47,21 +46,48 @@ def get_final_keyboard():
     keyboard.add_button("Попробовать другие ароматы", color=VkKeyboardColor.PRIMARY)
     return keyboard.get_keyboard()
 
-# ------------------- Telegram уведомления -------------------
+# ------------------- Telegram -------------------
 def send_telegram(message):
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    data = {"chat_id": TG_CHAT_ID, "text": message}
-    requests.post(url, data=data)
+    try:
+        url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+        data = {"chat_id": TG_CHAT_ID, "text": message}
+        requests.post(url, data=data, timeout=5)
+    except Exception as e:
+        print("Ошибка Telegram:", e)
 
-# ------------------- Основная логика бота -------------------
-def handle_message(user_id, text, original_text):
+# ------------------- Логика -------------------
+def handle_message(user_id, text):
     text_lower = text.lower()
 
-    # Создаём запись пользователя, если её нет
     if user_id not in users:
-        users[user_id] = {"state": None, "started": False}
+        users[user_id] = {
+            "state": None,
+            "started": False,
+            "last_time": 0
+        }
 
-    # Приветствие при первом сообщении
+    # анти-спам (важно при пробуждении)
+    now = time.time()
+    if now - users[user_id]["last_time"] < 1:
+        return
+    users[user_id]["last_time"] = now
+
+    # игнор "Начать"
+    if text_lower == "начать":
+        if not users[user_id]["started"]:
+            users[user_id]["started"] = True
+            vk.messages.send(
+                user_id=user_id,
+                message=(
+                    "Привет, я помощник MN98 🙌🏻\n\n"
+                    "Если хочешь сделать индивидуальную свечу и выбрать уникальный аромат, напиши слово Memory ✨\n\n"
+                    "Или напиши любой интересующий тебя вопрос 😊"
+                ),
+                random_id=0
+            )
+        return
+
+    # первое сообщение
     if not users[user_id]["started"]:
         users[user_id]["started"] = True
         vk.messages.send(
@@ -77,66 +103,67 @@ def handle_message(user_id, text, original_text):
 
     state = users[user_id]["state"]
 
-    # Режим сна
+    # режим сна
     if state == "sleep":
         if "memory" in text_lower:
             users[user_id]["state"] = None
         else:
             return
 
-    # 1. Старт
+    # старт сценария
     if "memory" in text_lower or "мемори" in text_lower:
         users[user_id]["state"] = "waiting_memory_text"
         first_name = vk.users.get(user_ids=user_id)[0]["first_name"]
+
         vk.messages.send(
             user_id=user_id,
             message=(
                 f"Хорошо, {first_name}!\n"
-                "Давай попробуем найти твой Memory Number\n"
-                "Я задам пару простых вопросов:\n\n"
-                "Скажи, какой момент или ощущение тебе сейчас ближе всего?\n"
-                "(Это может быть что угодно — место, время, чувство)"
+                "Давай попробуем найти твой Memory Number\n\n"
+                "Скажи, какой момент или ощущение тебе сейчас ближе всего?"
             ),
             random_id=0
         )
         return
 
-    # 2. Пользователь отправил воспоминание
     if state == "waiting_memory_text":
-        users[user_id]["memory"] = original_text
+        users[user_id]["memory"] = text
         users[user_id]["state"] = "waiting_feel"
+
         vk.messages.send(
             user_id=user_id,
-            message="Отлично! Скажи пожалуйста, как ты ощущаешь: это что-то теплое, или свежее?",
+            message="Это ощущение теплое или свежее?",
             keyboard=get_feel_keyboard(),
             random_id=0
         )
         return
 
     if state == "waiting_feel":
-        if text_lower in ["теплое ощущение", "свежее ощущение"]:
-            users[user_id]["feel"] = text_lower
-            users[user_id]["state"] = "waiting_smell"
+        if text_lower not in ["теплое ощущение", "свежее ощущение"]:
             vk.messages.send(
                 user_id=user_id,
-                message="А если представить этот момент как запах — он скорее сладкий, древесный или цветочный?",
-                keyboard=get_smell_keyboard(),
-                random_id=0
-            )
-        else:
-            vk.messages.send(
-                user_id=user_id,
-                message="Не понимаю 😅 Выбери вариант на кнопках ниже:",
+                message="Выбери вариант на кнопках 👇",
                 keyboard=get_feel_keyboard(),
                 random_id=0
             )
+            return
+
+        users[user_id]["feel"] = text_lower
+        users[user_id]["state"] = "waiting_smell"
+
+        vk.messages.send(
+            user_id=user_id,
+            message="Какой это запах?",
+            keyboard=get_smell_keyboard(),
+            random_id=0
+        )
         return
 
     if state == "waiting_smell":
         if text_lower not in ["сладкий", "древесный", "цветочный"]:
             vk.messages.send(
                 user_id=user_id,
-                message="Не понимаю 😅 Выбери вариант на кнопках ниже:",
+                message="Выбери вариант 👇",
                 keyboard=get_smell_keyboard(),
                 random_id=0
             )
@@ -144,33 +171,27 @@ def handle_message(user_id, text, original_text):
 
         users[user_id]["smell"] = text_lower
         feel = users[user_id]["feel"]
-        smell = text_lower
 
-        # Подбор результата
-        if feel == "теплое ощущение" and smell == "сладкий":
+        # результат
+        if feel == "теплое ощущение" and text_lower == "сладкий":
             result = "Какао, Черничный чизкейк"
-        elif feel == "свежее ощущение" and smell == "сладкий":
+        elif feel == "свежее ощущение" and text_lower == "сладкий":
             result = "Кленовый сироп и корица"
-        elif feel == "теплое ощущение" and smell == "древесный":
+        elif feel == "теплое ощущение" and text_lower == "древесный":
             result = "Еловые шишки и хвоя"
-        elif feel == "свежее ощущение" and smell == "древесный":
+        elif feel == "свежее ощущение" and text_lower == "древесный":
             result = "Американская пихта"
-        elif feel == "теплое ощущение" and smell == "цветочный":
+        elif feel == "теплое ощущение" and text_lower == "цветочный":
             result = "Кашемировое дерево"
-        elif feel == "свежее ощущение" and smell == "цветочный":
-            result = "Вербена"
         else:
-            result = "Что-то особенное 🙂"
+            result = "Вербена"
 
+        users[user_id]["result"] = result
         users[user_id]["state"] = "final_choice"
+
         vk.messages.send(
             user_id=user_id,
-            message=(
-                f"Великолепный выбор 🙌🏻\n\n"
-                f"Могу предложить: {result}\n\n"
-                "Я думаю, это идеально попадает в твой запрос ✨\n\n"
-                "Могу оформить для тебя прямо сейчас"
-            ),
+            message=f"Рекомендую: {result}\n\nОформляем?",
             keyboard=get_final_keyboard(),
             random_id=0
         )
@@ -180,70 +201,79 @@ def handle_message(user_id, text, original_text):
         if text_lower == "да, давайте":
             vk.messages.send(
                 user_id=user_id,
-                message=(
-                    "Отлично! Сейчас с вами свяжется менеджер 😊\n\n"
-                    "Если захочешь подобрать другой аромат — напиши memory ✨"
-                ),
+                message="Менеджер скоро свяжется с вами 😊",
                 random_id=0
             )
+
             send_telegram(
-                f"Новый клиент!\n"
+                f"🔥 Новый клиент\n"
                 f"ID: {user_id}\n"
-                f"Воспоминание: {users[user_id].get('memory')}\n"
-                f"Ощущение: {users[user_id].get('feel')}\n"
-                f"Аромат: {users[user_id].get('smell')}\n"
-                f"Предложено: {result}"
+                f"Memory: {users[user_id].get('memory')}\n"
+                f"Feel: {users[user_id].get('feel')}\n"
+                f"Smell: {users[user_id].get('smell')}\n"
+                f"Result: {users[user_id].get('result')}"
             )
+
             users[user_id]["state"] = "sleep"
+            return
+
         elif text_lower == "попробовать другие ароматы":
             users[user_id]["state"] = "waiting_memory_text"
+
             vk.messages.send(
                 user_id=user_id,
-                message="Давай попробуем заново 😊 Напиши своё ощущение:",
+                message="Опиши другое ощущение 😊",
                 random_id=0
             )
+            return
+
         else:
             vk.messages.send(
                 user_id=user_id,
-                message="Пожалуйста, выбери вариант на кнопках 😊",
+                message="Нажми кнопку 👇",
                 keyboard=get_final_keyboard(),
                 random_id=0
             )
-        return
+            return
 
-    # Если пользователь написал вне сценария
-    if state is None:
+    # вне сценария (теперь не триггерится на старте)
+    if state is None and users[user_id]["started"]:
         first_name = vk.users.get(user_ids=user_id)[0]["first_name"]
+
         send_telegram(
-            f"⚠️ Клиент написал вне сценария\n\n"
-            f"Имя: {first_name}\n"
-            f"ID: {user_id}\n"
-            f"Сообщение: {original_text}"
+            f"⚠️ Вне сценария\n"
+            f"{first_name} ({user_id}): {text}"
         )
+
         users[user_id]["state"] = "sleep"
 
-# ------------------- Flask Webhook -------------------
+# ------------------- Webhook -------------------
 @app.route("/", methods=["POST"])
 def webhook():
     data = request.json
-    print("ПРИШЕЛ ЗАПРОС:", data)
 
+    # подтверждение
     if data["type"] == "confirmation":
-        return os.getenv("VK_CONFIRMATION_CODE")
+        return VK_CONFIRMATION_CODE
+
+    # защита от дублей
+    event_id = data.get("event_id")
+    if event_id in processed_events:
+        return "ok"
+    processed_events.add(event_id)
 
     if data["type"] == "message_new":
         try:
             obj = data["object"]["message"]
-
             user_id = obj["from_id"]
-            text = obj["text"]
+            text = obj.get("text", "")
 
             print("USER:", user_id, "TEXT:", text)
 
-            handle_message(user_id, text, text)
+            handle_message(user_id, text)
 
         except Exception as e:
-            print("ОШИБКА ОБРАБОТКИ:", e)
+            print("Ошибка:", e)
 
     return "ok"
 
